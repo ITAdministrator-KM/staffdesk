@@ -1,0 +1,28 @@
+{
+  "placeholderImages": [
+    {
+      "id": "user-avatar",
+      "description": "A placeholder avatar for a user profile.",
+      "imageUrl": "https://picsum.photos/seed/user-avatar/100/100",
+      "imageHint": "portrait person"
+    },
+    {
+      "id": "project-1",
+      "description": "Placeholder image for project card 1",
+      "imageUrl": "https://picsum.photos/seed/project-1/600/400",
+      "imageHint": "office teamwork"
+    },
+    {
+      "id": "project-2",
+      "description": "Placeholder image for project card 2",
+      "imageUrl": "https://picsum.photos/seed/project-2/600/400",
+      "imageHint": "technology code"
+    },
+    {
+      "id": "project-3",
+      "description": "Placeholder image for project card 3",
+      "imageUrl": "https://picsum.photos/seed/project-3/600/400",
+      "imageHint": "business meeting"
+    }
+  ]
+}

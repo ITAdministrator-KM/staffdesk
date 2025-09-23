@@ -1,0 +1,263 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { User, UserRole } from '@/lib/data';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { EditUserForm } from '@/components/admin/edit-user-form';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Search, User as UserIcon, MoreHorizontal, Edit, Trash2, CheckSquare, Filter } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Badge } from './ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from './ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
+import { PrintSelectionDialog } from './print-selection-dialog';
+import { useToast } from '@/hooks/use-toast';
+import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth } from '@/lib/firebase';
+import { format } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+// ... (keep the UserProfileModal component as is)
+
+export function StaffDirectory({ users: initialUsers }: { users: User[] }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [users, setUsers] = useState(initialUsers);
+  const [isPrintSelectionOpen, setIsPrintSelectionOpen] = useState(false);
+  const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterDivision, setFilterDivision] = useState<string>('all');
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const { toast } = useToast();
+  const [user] = useAuthState(auth);
+
+  // Update users when initialUsers changes
+  useEffect(() => {
+    setUsers(initialUsers);
+  }, [initialUsers]);
+
+  // Find current user
+  useEffect(() => {
+    if (user?.email) {
+      const foundUser = users.find(u => u.email === user.email);
+      setCurrentUser(foundUser || null);
+    }
+  }, [user, users]);
+
+  // Get unique divisions for filter
+  const divisions = [...new Set(users.map(u => u.division).filter(Boolean))];
+  const roles: UserRole[] = ['Admin', 'HOD', 'Divisional Head', 'Division CC', 'Staff'];
+
+  // ... (keep the rest of the component logic as is)
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>
+              {currentUser?.role === 'Staff' ? 'My Profile' : 
+               currentUser?.role === 'Division CC' || currentUser?.role === 'Divisional Head' ? 
+               `${currentUser.division} Staff` : 'All Staff'}
+            </CardTitle>
+            <CardDescription>
+              {currentUser?.role === 'Staff' ? 'Your personal information' :
+               currentUser?.role === 'Division CC' || currentUser?.role === 'Divisional Head' ?
+               `Staff members in ${currentUser.division} division` :
+               'A list of all staff members in the organization.'}
+            </CardDescription>
+          </div>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <div className="relative flex-1 sm:flex-initial">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search by name, email, designation..."
+                className="pl-8 sm:w-[300px]"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Button onClick={() => setIsPrintSelectionOpen(true)} variant="outline" size="sm">
+              <CheckSquare className="mr-2 h-4 w-4" />
+              Print Selection
+            </Button>
+          </div>
+        </div>
+        
+        {/* Filters */}
+        {(currentUser?.role === 'Admin' || currentUser?.role === 'HOD') && (
+          <div className="flex flex-wrap gap-4 mt-4">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              <Select value={filterRole} onValueChange={setFilterRole}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Filter by role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  {roles.map(role => (
+                    <SelectItem key={role} value={role}>{role}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <Select value={filterDivision} onValueChange={setFilterDivision}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Filter by division" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Divisions</SelectItem>
+                {divisions.map(division => (
+                  <SelectItem key={division} value={division}>{division}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Designation</TableHead>
+                <TableHead>Division</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={user.avatarUrl} alt={user.name} />
+                          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        {user.name}
+                      </div>
+                    </TableCell>
+                    <TableCell>{user.designation}</TableCell>
+                    <TableCell><Badge variant="secondary">{user.division || 'N/A'}</Badge></TableCell>
+                    <TableCell><Badge variant="outline">{user.role}</Badge></TableCell>
+                    <TableCell className="text-right">
+                      <Dialog>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Toggle menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DialogTrigger asChild>
+                              <DropdownMenuItem>
+                                <UserIcon className="mr-2 h-4 w-4"/> View Details
+                              </DropdownMenuItem>
+                            </DialogTrigger>
+                            
+                            {(currentUser?.role === 'Admin' || currentUser?.role === 'HOD' || 
+                              currentUser?.id === user.id) && (
+                              <DropdownMenuItem onSelect={() => setEditingUser(user)}>
+                                <Edit className="mr-2 h-4 w-4"/> Edit Profile
+                              </DropdownMenuItem>
+                            )}
+                            
+                            {(currentUser?.role === 'Admin' || currentUser?.role === 'HOD') && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel>Admin Actions</DropdownMenuLabel>
+                                
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                      <Edit className="mr-2 h-4 w-4"/> Change Role
+                                    </DropdownMenuItem>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent>
+                                    {roles.map(role => (
+                                      <DropdownMenuItem 
+                                        key={role}
+                                        onClick={() => handleUpdateUserRole(user.id, role)}
+                                        disabled={user.role === role}
+                                      >
+                                        {role} {user.role === role && '(Current)'}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                                
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem 
+                                      onSelect={(e) => e.preventDefault()} 
+                                      className="text-destructive focus:text-destructive"
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4"/> Delete User
+                                    </DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete {user.name}'s account and all associated data.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction 
+                                        onClick={() => handleDeleteUser(user.id)} 
+                                        className="bg-destructive hover:bg-destructive/90"
+                                      >
+                                        Delete User
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <UserProfileModal user={user} />
+                        {editingUser && (
+                          <EditUserForm 
+                            user={editingUser}
+                            onClose={() => setEditingUser(null)}
+                            onSave={handleUpdateUser}
+                            divisions={divisions}
+                            roles={roles}
+                          />
+                        )}
+                      </Dialog>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center">
+                    No matching staff found.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <PrintSelectionDialog 
+          isOpen={isPrintSelectionOpen}
+          onOpenChange={setIsPrintSelectionOpen}
+          users={filteredUsers}
+        />
+      </CardContent>
+    </Card>
+  );
+}

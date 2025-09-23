@@ -1,0 +1,21 @@
+{
+  "name": "StaffDeskDSK",
+  "short_name": "StaffDesk",
+  "description": "Internal Staff Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#0D47A1",
+  "background_color": "#ffffff",
+  "orientation": "portrait-primary",
+  "permissions": [
+    "clipboard-read",
+    "clipboard-write"
+  ],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}
